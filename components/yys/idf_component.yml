@@ -1,4 +1,8 @@
-description: YYS Sensors
-version: 1.0.0
+description: YYS Sensor for CO, O2, H2S and CH4
+version: 1.0.1
+url: "https://de.aliexpress.com/item/1005010209724834.html?spm=a2g0o.productlist.main.6.4a0b9dBR9dBRrQ&algo_pvid=ff99cfd1-e39e-472e-8c4b-4d8884de2e22&algo_exp_id=ff99cfd1-e39e-472e-8c4b-4d8884de2e22-5&pdp_ext_f=%7B%22order%22%3A%22-1%22%2C%22eval%22%3A%221%22%2C%22fromPage%22%3A%22search%22%7D&pdp_npi=6%40dis%21EUR%21145.73%21145.73%21%21%211177.16%211177.16%21%402103956a17659116410254998eb4f0%2112000051528573107%21sea%21AT%210%21ABX%211%210%21n_tag%3A-29910%3Bd%3A617b50a6%3Bm03_new_user%3A-29895&curPageLogUid=BVERnWH3u9qS&utparam-url=scene%3Asearch%7Cquery_from%3A%7Cx_object_id%3A1005010209724834%7C_p_origin_prod%3A#nav-specification"
 dependencies:
   idf: '>=5.4'
+  brmmm3/esp32_rmt_uart_v5: '>=1.0.0'
+examples:
+  - path: "examples/simple"

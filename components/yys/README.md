@@ -1,22 +1,20 @@
-/**
- * GPS - GPS Driver for Esspressif ESP-32.
- *
- * MIT License
- *
- * Copyright (C) 2024 Martin Bammer
- * Please contact at <mrbm74@gmail.com>
- */
+# ESP32 YYS sensor component for ESP-IDF providing CO, O2, H2S and CH4
 
-#pragma once
+Component for Espressif ESP32 ESP-IDF framework.
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+This component uses the subcomponent esp32_rmt_uart_v5 for receiving the data from the YYS sensor. Because of this dependency this component only works for ESP-IDF v5.x.
 
-#include <stdint.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
+The communication protocol is as follows:
 
+![protocol](doc/image.png)
+
+## How to Use
+
+Clone this repository to your project components directory.
+
+## Configuration
+
+```c
 typedef struct yys_sensor_s {
     char *name;                  /*!< Optional name of this sensor */
     uint8_t *buffer;             /*!< Buffer for received sensor data */
@@ -32,29 +30,6 @@ typedef struct yys_sensor_s {
     bool data_ready;             /*!< New data available flag */
     uint8_t debug;               /*!< Bitmask for debugging */
 } yys_sensor_t;
+```
 
-esp_err_t yys_init(yys_sensor_t **sensor, uint8_t rx_pin, uint8_t tx_pin);
-
-bool yys_data_ready(yys_sensor_t *sensor);
-
-uint16_t yys_get_co_raw(yys_sensor_t *sensor);
-
-uint16_t yys_get_o2_raw(yys_sensor_t *sensor);
-
-uint16_t yys_get_h2s_raw(yys_sensor_t *sensor);
-
-uint16_t yys_get_ch4_raw(yys_sensor_t *sensor);
-
-float yys_get_co(yys_sensor_t *sensor);
-
-float yys_get_o2(yys_sensor_t *sensor);
-
-float yys_get_h2s(yys_sensor_t *sensor);
-
-float yys_get_ch4(yys_sensor_t *sensor);
-
-void yys_dump(yys_sensor_t *sensor);
-
-#ifdef __cplusplus
-};
-#endif
+Every second 1 update is sent by the sensor.
