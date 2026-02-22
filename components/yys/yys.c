@@ -1,11 +1,9 @@
 #include <string.h>
-#include "esp_err.h"
-#include "rom/gpio.h"
-#include "driver/gpio.h"
-#include "driver/uart.h"
-#include "esp_timer.h"
-#include "esp_log.h"
+#include <esp_err.h>
+#include <esp_timer.h>
+#include <esp_log.h>
 #include "rmt_uart.h"
+
 #include "yys.h"
 
 static const char *TAG = "YYS";
@@ -15,7 +13,7 @@ static const char *TAG = "YYS";
 
 static esp_timer_handle_t yys_message_end_timer;
 
-void yys_check_and_save_data(yys_sensor_t *sensor)
+void yys_check_and_save_data(yys_t *sensor)
 {
     uint8_t *buf = sensor->buffer;
     uint8_t cksum = 0x3c + 0x04 + buf[0] + buf[1] + buf[2] + buf[3] + buf[4] + buf[5] + buf[6] + buf[7] + buf[8];
@@ -24,10 +22,12 @@ void yys_check_and_save_data(yys_sensor_t *sensor)
         ESP_LOGI(sensor->name, "#CNT %d", sensor->cnt);
     }
     if (cksum == buf[9]) {
-        sensor->o2 = (uint16_t)buf[0] << 8 | (uint16_t)buf[1];
-        sensor->co = (uint16_t)buf[2] << 8 | (uint16_t)buf[3];
-        sensor->h2s = (uint16_t)buf[4] << 8 | (uint16_t)buf[5];
-        sensor->ch4 = (uint16_t)buf[6] << 8 | (uint16_t)buf[7];
+        yys_values_t *values = &sensor->values;
+
+        values->o2 = (uint16_t)buf[0] << 8 | (uint16_t)buf[1];
+        values->co = (uint16_t)buf[2] << 8 | (uint16_t)buf[3];
+        values->h2s = (uint16_t)buf[4] << 8 | (uint16_t)buf[5];
+        values->ch4 = (uint16_t)buf[6] << 8 | (uint16_t)buf[7];
         sensor->data_cnt++;
         sensor->data_ready = true;
     } else if (sensor->debug & 4) {
@@ -39,12 +39,12 @@ void yys_check_and_save_data(yys_sensor_t *sensor)
 
 void yys_message_end_timeout(void *args)
 {
-    yys_check_and_save_data((yys_sensor_t *)args);
+    yys_check_and_save_data((yys_t *)args);
 }
 
 static void rx_task_yys_sensor(void *args)
 {
-    yys_sensor_t *sensor = (yys_sensor_t *)args;
+    yys_t *sensor = (yys_t *)args;
 
     uint8_t rx_pin = sensor->rx_pin;
     uint8_t *buf = sensor->buffer;
@@ -57,10 +57,10 @@ static void rx_task_yys_sensor(void *args)
         .parity = RMT_UART_PARITY_DISABLE,
         .stop_bits = RMT_UART_STOP_BITS_1,
         .rx_io_num = rx_pin,                // Your RX GPIO pin
-        .buffer_size = 50                   // RX buffer size (bytes)
+        .buffer_size = 48                   // RX buffer size (bytes)
     };
 
-    ESP_ERROR_CHECK(rmt_uart_init(0, &uart_config));
+    ESP_ERROR_CHECK(rmt_uart_init(sensor->channel, &uart_config));
 
     uint8_t rx_buf[32];
     size_t length = 0;
@@ -77,7 +77,7 @@ static void rx_task_yys_sensor(void *args)
     ESP_ERROR_CHECK(esp_timer_create(&oneshot_timer_args, &yys_message_end_timer));
 
     while (true) {
-        length = rmt_uart_read_bytes(0, rx_buf, sizeof(rx_buf), portMAX_DELAY);
+        length = rmt_uart_read(sensor->channel, rx_buf, sizeof(rx_buf), portMAX_DELAY);
         uint8_t i = 0;
         while (length-- > 0) {
             uint8_t rx_byte = rx_buf[i++];
@@ -104,24 +104,25 @@ static void rx_task_yys_sensor(void *args)
     }
 }
 
-esp_err_t yys_init(yys_sensor_t **sensor, uint8_t rx_pin, uint8_t tx_pin)
+esp_err_t yys_init(yys_t **sensor_ptr, uint8_t channel, uint8_t rx_pin, uint8_t tx_pin)
 {
-    yys_sensor_t *yys_sensor = calloc(1, sizeof(yys_sensor_t));
+    yys_t *sensor = calloc(1, sizeof(yys_t));
 
     ESP_LOGI("YYS", "Initialize YYS");
     // YYS Multi Sensor
-    yys_sensor->name = "YYS";
-    yys_sensor->baudrate = 9600;
-    yys_sensor->rx_pin = rx_pin;
-    yys_sensor->buffer = malloc(12);
-    yys_sensor->cnt = 0xff;
-    *sensor = yys_sensor;
-    xTaskCreate(rx_task_yys_sensor, "rx_task_yys_sensor", 4096, (void *)yys_sensor, configMAX_PRIORITIES - 1, NULL);
+    sensor->name = "YYS";
+    sensor->baudrate = 9600;
+    sensor->channel = channel;
+    sensor->rx_pin = rx_pin;
+    sensor->buffer = malloc(12);
+    sensor->cnt = 0xff;
+    *sensor_ptr = sensor;
+    xTaskCreate(rx_task_yys_sensor, "rx_task_yys_sensor", 4096, (void *)sensor, configMAX_PRIORITIES - 1, NULL);
     ESP_LOGI("YYS", "YYS initialized");
     return ESP_OK;
 }
 
-bool yys_data_ready(yys_sensor_t *sensor)
+bool yys_data_ready(yys_t *sensor)
 {
     if (sensor->data_ready) {
         sensor->data_ready = false;
@@ -130,49 +131,49 @@ bool yys_data_ready(yys_sensor_t *sensor)
     return false;
 }
 
-uint16_t yys_get_co_raw(yys_sensor_t *sensor)
+uint16_t yys_get_co_raw(yys_t *sensor)
 {
-    return sensor->co;
+    return sensor->values.co;
 }
 
-uint16_t yys_get_o2_raw(yys_sensor_t *sensor)
+uint16_t yys_get_o2_raw(yys_t *sensor)
 {
-    return sensor->o2;
+    return sensor->values.o2;
 }
 
-uint16_t yys_get_h2s_raw(yys_sensor_t *sensor)
+uint16_t yys_get_h2s_raw(yys_t *sensor)
 {
-    return sensor->h2s;
+    return sensor->values.h2s;
 }
 
-uint16_t yys_get_ch4_raw(yys_sensor_t *sensor)
+uint16_t yys_get_ch4_raw(yys_t *sensor)
 {
-    return sensor->ch4;
+    return sensor->values.ch4;
 }
 
-float yys_get_co(yys_sensor_t *sensor)
+float yys_get_co(yys_t *sensor)
 {
-    return (float)sensor->co;  // e.g. 6 = 6ppm
+    return (float)sensor->values.co;  // e.g. 6 = 6ppm
 }
 
-float yys_get_o2(yys_sensor_t *sensor)
+float yys_get_o2(yys_t *sensor)
 {
-    return (float)sensor->o2 * 0.1;  // e.g. 209 = 20.9%
+    return (float)sensor->values.o2 * 0.1;  // e.g. 209 = 20.9%
 }
 
-float yys_get_h2s(yys_sensor_t *sensor)
+float yys_get_h2s(yys_t *sensor)
 {
-    return (float)sensor->h2s * 0.1;  // e.g. 672 = 67.2ppm
+    return (float)sensor->values.h2s * 0.1;  // e.g. 672 = 67.2ppm
 }
 
-float yys_get_ch4(yys_sensor_t *sensor)
+float yys_get_ch4(yys_t *sensor)
 {
-    return (float)sensor->ch4;  // e.g. 6 = 6ppm
+    return (float)sensor->values.ch4;  // e.g. 6 = 6ppm
 }
 
-void yys_dump(yys_sensor_t *sensor)
+void yys_dump_values(yys_t *sensor, bool force)
 {
-    if (sensor->debug & 1) {
+    if (force || sensor->debug & 1) {
         ESP_LOGI(TAG, "O2=%f %%  CO=%f ppm  H2S=%f ppm  CH4=%f ppm  DCNT=%d  ERR=%d",
                  yys_get_o2(sensor), yys_get_co(sensor),
                  yys_get_h2s(sensor), yys_get_ch4(sensor),
