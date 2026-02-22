@@ -21,11 +21,9 @@ extern "C" {
 #define RMT_UART_NUM_MAX           (2)
 #endif
 
-typedef int rmt_uart_port_t;
-
 typedef enum {
-    RMT_UART_MODE_TX_ONLY  = 0x0,
-    RMT_UART_MODE_RX_ONLY  = 0x1,
+    RMT_UART_MODE_RX_ONLY  = 0x0,
+    RMT_UART_MODE_TX_ONLY  = 0x1,
     RMT_UART_MODE_TX_RX    = 0x2,
 } rmt_uart_mode_t;
 
@@ -55,10 +53,10 @@ typedef struct {
     size_t buffer_size;                   /*!< Size of buffer for symbols*/
 } rmt_uart_config_t;
 
-esp_err_t rmt_uart_init(rmt_uart_port_t uart_num, const rmt_uart_config_t* uart_config);
-esp_err_t rmt_uart_write_bytes(rmt_uart_port_t uart_num, const uint8_t* data, size_t size);
-int rmt_uart_read_bytes(rmt_uart_port_t uart_num, uint8_t* buf, size_t size, TickType_t ticks_to_wait);
-esp_err_t rmt_uart_deinit(rmt_uart_port_t uart_num);
+esp_err_t rmt_uart_init(uint8_t port, const rmt_uart_config_t* uart_config);
+esp_err_t rmt_uart_write(uint8_t port, const uint8_t *data, size_t len);
+int rmt_uart_read(uint8_t port, uint8_t *buf, size_t max_len, TickType_t timeout);
+esp_err_t rmt_uart_deinit(uint8_t port);
 
 
 #ifdef __cplusplus
