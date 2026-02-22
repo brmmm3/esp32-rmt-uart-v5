@@ -1,10 +1,21 @@
 dependencies:
+  brmmm3/esp32_rmt_uart_v5:
+    component_hash: e8ec146fd772c83906c760a4bd209cb43bb35dfb21ff45c05f44c8b61b34108f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.0
   idf:
     source:
       type: idf
     version: 5.5.1
 direct_dependencies:
+- brmmm3/esp32_rmt_uart_v5
 - idf
-manifest_hash: 146a088e9068c5d601c672da04f5cc611278d9782e3a58e104800f90f8ab59b3
+manifest_hash: 97684c2bd5a2ed4e31e17928b494c89a01bffd0f7d8e5876cac49ce20fdee4e4
 target: esp32c6
 version: 2.0.0
