@@ -1,12 +1,15 @@
-#include <stdlib.h>
 #include <string.h>
-#include "rmt_uart.h"
-#include "esp_log.h"
-#include "esp_check.h"
-#include "driver/rmt_tx.h"
-#include "driver/rmt_rx.h"
+#include <esp_log.h>
+#include <esp_check.h>
+#include <driver/rmt_tx.h>
+#include <driver/rmt_rx.h>
+#include <driver/gpio.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
 
-static const char *TAG = "rmt-uart";
+#include "rmt_uart.h"
+
+static const char *TAG = "RMT";
 
 typedef struct {
     rmt_tx_channel_config_t channel_config;
@@ -86,7 +89,7 @@ static bool IRAM_ATTR rmt_rx_done_cb(rmt_channel_handle_t channel, const rmt_rx_
     return higher_prio_woken == pdTRUE;
 }
 
-esp_err_t rmt_uart_init(rmt_uart_port_t uart_num, const rmt_uart_config_t* uart_config)
+esp_err_t rmt_uart_init(uint8_t uart_num, const rmt_uart_config_t* uart_config)
 {
     ESP_RETURN_ON_FALSE((uart_num < RMT_UART_NUM_MAX), ESP_FAIL, TAG, "uart_num error");
     ESP_RETURN_ON_FALSE((uart_config), ESP_FAIL, TAG, "uart_config error");
@@ -116,7 +119,7 @@ esp_err_t rmt_uart_init(rmt_uart_port_t uart_num, const rmt_uart_config_t* uart_
             .gpio_num = uart_config->rx_io_num,
             .clk_src = RMT_CLK_SRC_XTAL,  // 40 MHz
             .resolution_hz = RMT_RES_HZ,
-            .mem_block_symbols = (uart_config->mode == RMT_UART_MODE_RX_ONLY) ? (SOC_RMT_MEM_WORDS_PER_CHANNEL << 1) : SOC_RMT_MEM_WORDS_PER_CHANNEL,
+            .mem_block_symbols = (uart_config->mode == RMT_UART_MODE_RX_ONLY) ? SOC_RMT_MEM_WORDS_PER_CHANNEL : (SOC_RMT_MEM_WORDS_PER_CHANNEL << 1),
             .intr_priority = 0,
         };
 
@@ -149,7 +152,7 @@ esp_err_t rmt_uart_init(rmt_uart_port_t uart_num, const rmt_uart_config_t* uart_
             .gpio_num = uart_config->tx_io_num,
             .clk_src = RMT_CLK_SRC_XTAL,  // 40 MHz
             .resolution_hz = RMT_RES_HZ,
-            .mem_block_symbols = (uart_config->mode == RMT_UART_MODE_RX_ONLY) ? (SOC_RMT_MEM_WORDS_PER_CHANNEL << 1) : SOC_RMT_MEM_WORDS_PER_CHANNEL,
+            .mem_block_symbols = (uart_config->mode == RMT_UART_MODE_RX_ONLY) ? SOC_RMT_MEM_WORDS_PER_CHANNEL : (SOC_RMT_MEM_WORDS_PER_CHANNEL << 1),
             .intr_priority = 0,
         };
 
@@ -172,7 +175,7 @@ esp_err_t rmt_uart_init(rmt_uart_port_t uart_num, const rmt_uart_config_t* uart_
     return ESP_OK;
 }
 
-esp_err_t rmt_uart_write_bytes(rmt_uart_port_t uart_num, const uint8_t* data, size_t size)
+esp_err_t rmt_uart_write(uint8_t uart_num, const uint8_t* data, size_t size)
 {
     rmt_uart_context_t* ctx = &rmt_uart_contexts[uart_num];
     ESP_RETURN_ON_FALSE((ctx->configured), ESP_FAIL, TAG, "uart not configured");
@@ -195,7 +198,7 @@ esp_err_t rmt_uart_write_bytes(rmt_uart_port_t uart_num, const uint8_t* data, si
     return 0;
 }
 
-int rmt_uart_read_bytes(rmt_uart_port_t uart_num, uint8_t* buf, size_t buf_size, TickType_t timeout)
+int rmt_uart_read(uint8_t uart_num, uint8_t* buf, size_t buf_size, TickType_t timeout)
 {
     rmt_uart_context_t* ctx = &rmt_uart_contexts[uart_num];
     ESP_RETURN_ON_FALSE((ctx->configured), ESP_FAIL, TAG, "uart not configured");
@@ -225,7 +228,8 @@ int rmt_uart_read_bytes(rmt_uart_port_t uart_num, uint8_t* buf, size_t buf_size,
             in_frame = true;
             bit_count = 0;
             current_byte = 0;
-            duration -= bit_ticks;
+            if (duration >= bit_ticks) duration -= bit_ticks;
+            else duration = 0;
         }
         if (in_frame) {
             if (s.level0 != 0) {
@@ -236,7 +240,8 @@ int rmt_uart_read_bytes(rmt_uart_port_t uart_num, uint8_t* buf, size_t buf_size,
             }
             while (duration > bit_ticks_min) {
                 bit_count++;
-                duration -= bit_ticks;
+                if (duration >= bit_ticks) duration -= bit_ticks;
+                else duration = 0;
                 //ESP_LOGI(TAG, "0 bit_cnt=%d dur=%d", bit_count, duration);
             }
             if (bit_count > 8) {
@@ -256,7 +261,8 @@ int rmt_uart_read_bytes(rmt_uart_port_t uart_num, uint8_t* buf, size_t buf_size,
                 }
                 current_byte |= (1 << bit_count);
                 bit_count++;
-                duration -= bit_ticks;
+                if (duration >= bit_ticks) duration -= bit_ticks;
+                else duration = 0;
                 //ESP_LOGI(TAG, "1 bit_cnt=%d dur=%d", bit_count, duration);
             }
         }
@@ -274,7 +280,7 @@ int rmt_uart_read_bytes(rmt_uart_port_t uart_num, uint8_t* buf, size_t buf_size,
     return byte_cnt;
 }
 
-esp_err_t rmt_uart_deinit(rmt_uart_port_t uart_num)
+esp_err_t rmt_uart_deinit(uint8_t uart_num)
 {
     rmt_uart_context_t* ctx = &rmt_uart_contexts[uart_num];
     ESP_RETURN_ON_FALSE((ctx->configured), ESP_FAIL, TAG, "uart not configured");

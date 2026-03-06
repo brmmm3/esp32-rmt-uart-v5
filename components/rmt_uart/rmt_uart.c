@@ -11,9 +11,6 @@
 
 static const char *TAG = "RMT";
 
-#define RMT_UART_RX_SYMBOLS     48       // Hardware limit on ESP32-C6 (1 block)
-#define RMT_UART_TX_SYMBOLS     320      // Enough for ~30-40 byte frames
-
 typedef struct {
     rmt_tx_channel_config_t channel_config;
     rmt_channel_handle_t channel;
