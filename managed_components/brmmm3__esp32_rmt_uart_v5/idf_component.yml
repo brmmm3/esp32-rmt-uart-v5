@@ -1,5 +1,0 @@
-description: ESP32 RMT UART for ESP-IDF v5.x
-version: 1.0.1
-url: "https://github.com/brmmm3/esp32-rmt-uart"
-dependencies:
-  idf: '>=5.4'

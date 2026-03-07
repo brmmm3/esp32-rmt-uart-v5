@@ -3,9 +3,13 @@ set(CMAKE_C_STANDARD 11)
 
 idf_component_register(
     SRCS
-        rmt_uart.c
+        ze08.c
     INCLUDE_DIRS
         "."
     PRIV_REQUIRES
+        esp_timer
+        rmt_uart
+    REQUIRES
         driver
+        esp_driver_uart
 )

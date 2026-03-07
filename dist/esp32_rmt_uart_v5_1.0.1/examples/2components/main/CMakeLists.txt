@@ -3,9 +3,11 @@ set(CMAKE_C_STANDARD 11)
 
 idf_component_register(
     SRCS
-        rmt_uart.c
+        esp32-rmt-uart-v5.c
     INCLUDE_DIRS
-        "."
-    PRIV_REQUIRES
-        driver
+        .
+    REQUIRES
+        rmt_uart
+        yys
+        ze08
 )
